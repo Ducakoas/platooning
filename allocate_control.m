@@ -8,9 +8,25 @@ function u_input = allocate_control(a_des, delta_f, v_x, r, roll_angle, p)
     epsilon = 1e-3;
     if abs(v_x) < epsilon, v_x_eff = epsilon; else, v_x_eff = v_x; end
     
-    % 2. Lực cản không khí và Lực dọc yêu cầu từ Platooning
+    % 2. Bù đầy đủ lực cản khí động + cản lăn
+    %
+    % plant_16dof.m trừ lực cản lăn trực tiếp trong các lực Fx của từng bánh:
+    %   Fx_wheel = Fx_tire - Fz*a/R
+    %
+    % Vì vậy allocator phải bù cả:
+    %   F_aero + F_roll
+    %
+    % Nếu chỉ bù F_aero, khi a_des = 0 xe vẫn bị giảm tốc dù vx đã
+    % đúng bằng vận tốc mong muốn. Đây chính là nguyên nhân của hiện tượng
+    % 16 -> 15.5 m/s trong kết quả mô phỏng.
     F_a = 0.5 * p.C_D * p.A_a * p.rho_a * v_x_eff^2;
-    F_req = p.m_tot * a_des + F_a;
+
+    F_roll = ...
+        (p.F_zf_static*p.a_f + ...
+        p.F_zr_static*p.a_r + ...
+        p.F_zs_static*p.a_s)/p.R_f;
+
+    F_req = p.m_tot * a_des + F_a + F_roll;
     F_req = max(min(F_req, p.Fx_cmd_max), p.Fx_cmd_min);
     
     if F_req >= 0
